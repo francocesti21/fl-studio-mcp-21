@@ -411,6 +411,29 @@ def register(mcp: FastMCP) -> None:
                        "audio-track link ('Assign to new Audio track(s)') has no API.")
         return res
 
+    @mcp.tool(annotations={"title": "List FL API functions (diagnostic)", **_RO})
+    def fl_api_dir(
+        module: Annotated[str, Field(description="FL module: mixer, playlist, channels, general, ui, transport, patterns, arrangement, midi.")] = "mixer",
+        contains: Annotated[Optional[str], Field(description="Only names containing this text (case-insensitive).")] = None,
+    ) -> dict:
+        """Read-only: list the function names FL's scripting API exposes in one
+        module on THIS FL version. Use it to check whether a newer FL adds
+        something (e.g. creating mixer tracks) before saying it is impossible."""
+        b = get_bridge()
+        names, start = [], 0
+        for _ in range(50):
+            r = b.call(protocol.CMD_API_PROBE, {"op": "dir", "module": module, "start": start}) or {}
+            if r.get("error"):
+                return {"ok": False, "module": module, "error": r["error"]}
+            names += r.get("names") or []
+            nxt = r.get("next_start")
+            if nxt is None or nxt <= start:
+                break
+            start = nxt
+        if contains:
+            names = [n for n in names if contains.lower() in n.lower()]
+        return {"ok": True, "module": module, "count": len(names), "names": names}
+
     @mcp.tool(annotations={"title": "Copy mixer names/colors to playlist", **_WR})
     def fl_mirror_playlist(
         first_mixer_track: Annotated[int, Field(ge=1)],
