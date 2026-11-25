@@ -398,7 +398,9 @@ def register(mcp: FastMCP) -> None:
                     "playlist_tracks": len(plan["playlist"])}
         b = get_bridge()
         info = b.call(protocol.CMD_SESSION_INFO)
-        have = int(info.get("mixer_tracks", 0)) - 1     # minus Master
+        # trackCount() counts Master (index 0) AND a hidden last slot that
+        # cannot be renamed (verified FL 2026, API 45): usable = count - 2.
+        have = int(info.get("mixer_tracks", 0)) - 2
         need = plan["last_track"]
         if have < need:
             return {"ok": False, "error": "not enough mixer tracks",

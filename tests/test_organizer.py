@@ -139,7 +139,7 @@ def test_build_template_applies_verifies_and_undoes(sim_env):
 
 
 def test_template_refuses_when_mixer_too_small(controller, changelog, monkeypatch):
-    sim = SimFL(mixer_tracks=26)
+    sim = SimFL(mixer_tracks=27)
     install(controller, sim)
     bridge = ControllerBridge(controller)
     monkeypatch.setattr(org, "get_bridge", lambda: bridge)
