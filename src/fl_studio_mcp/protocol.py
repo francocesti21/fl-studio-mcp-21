@@ -302,6 +302,8 @@ CMD_ARRANGE_GET_MARKERS = "arrange_get_markers"
 CMD_APPLY_OPS = "apply_ops"          # many compact writes in one round trip
 CMD_STATE_DUMP = "state_dump"        # compact state of given targets (verify/undo)
 CMD_SESSION_INFO = "session_info"    # mixer/playlist/channel counts
+CMD_MIXER_SELECT_TRACKS = "mixer_select_tracks"
+CMD_MIXER_ADD_TRACKS = "mixer_add_tracks"   # experimental (ui.insert)
 
 
 

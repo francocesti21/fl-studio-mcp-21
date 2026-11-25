@@ -413,6 +413,25 @@ def register(mcp: FastMCP) -> None:
                        "audio-track link ('Assign to new Audio track(s)') has no API.")
         return res
 
+    @mcp.tool(annotations={"title": "Select mixer tracks", **_WR})
+    def fl_mixer_select_tracks(
+        tracks: Annotated[List[int], Field(description="Mixer tracks to select (everything else is deselected).")],
+    ) -> dict:
+        """Select exactly these mixer tracks, like clicking them. Then one
+        right-click > 'Assign to new Audio track(s)' in FL links them all to
+        the playlist in order. Changes only the selection."""
+        return get_bridge().call(protocol.CMD_MIXER_SELECT_TRACKS, {"tracks": list(tracks)})
+
+    @mcp.tool(annotations={"title": "Add mixer tracks (experimental)", **_WR})
+    def fl_mixer_add_tracks(
+        count: Annotated[int, Field(ge=1, le=64)],
+    ) -> dict:
+        """EXPERIMENTAL: try to add mixer tracks from the script (FL's API has
+        no add function; this sends FL's Insert command to the mixer). Reports
+        the track count before/after; if 'added' is 0 it does not work on this
+        FL version: tell the user to use Mixer > Insert multiple."""
+        return get_bridge().call(protocol.CMD_MIXER_ADD_TRACKS, {"count": int(count)})
+
     @mcp.tool(annotations={"title": "List FL API functions (diagnostic)", **_RO})
     def fl_api_dir(
         module: Annotated[str, Field(description="FL module: mixer, playlist, channels, general, ui, transport, patterns, arrangement, midi.")] = "mixer",

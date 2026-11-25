@@ -72,7 +72,7 @@ PROTOCOL_VERSION = 2
 
 # Must equal the server package version. `fl-studio-mcp doctor` compares the
 # two and asks for `fl-studio-mcp setup` when they differ.
-CONTROLLER_VERSION = "2.1.0"
+CONTROLLER_VERSION = "2.2.0"
 
 SYSEX_MANUFACTURER = 0x7D
 SYSEX_MAGIC = (0x4D, 0x43, 0x50)   # ASCII "MCP"
@@ -1613,6 +1613,8 @@ def _op_apply(op):
     elif k == "mr":
         mixer.setRouteTo(int(op[1]), int(op[2]), 1 if op[3] else 0)
         return "route"
+    elif k == "ml":                       # send level src -> dst (0..1)
+        mixer.setRouteToLevel(int(op[1]), int(op[2]), max(0.0, min(1.0, float(op[3]))))
     elif k == "pn":
         playlist.setTrackName(int(op[1]), str(op[2]))
     elif k == "pc":
@@ -1700,6 +1702,53 @@ def _h_session_info(p):
     return out
 
 
+
+def _h_mixer_select_tracks(p):
+    """Select exactly these mixer tracks (what a user does with clicks), so
+    a following right-click acts on all of them."""
+    want = [int(t) for t in (p.get("tracks") or [])]
+    try:
+        mixer.deselectAll()
+    except Exception:
+        pass
+    for t in want:
+        if not mixer.isTrackSelected(t):
+            mixer.selectTrack(t)
+    if want:
+        try:
+            mixer.setActiveTrack(want[0])
+        except Exception:
+            pass
+    sel = [t for t in range(mixer.trackCount()) if mixer.isTrackSelected(t)]
+    return {"ok": sel == sorted(want), "selected": sel[:64]}
+
+
+def _h_mixer_add_tracks(p):
+    """EXPERIMENTAL: add mixer tracks by sending FL's Insert command to the
+    focused mixer (the API has no add function). Reports the count before
+    and after so the caller can verify; never claims success blindly."""
+    n = max(0, min(64, int(p.get("count", 1))))
+    before = mixer.trackCount()
+    wid = getattr(midi, "widMixer", 0)
+    try:
+        ui.showWindow(wid)
+        ui.setFocused(wid)
+    except Exception as e:
+        return {"ok": False, "error": "focus mixer: %s" % e, "before": before}
+    try:
+        mixer.setActiveTrack(max(1, before - 2))
+    except Exception:
+        pass
+    for _ in range(n):
+        try:
+            ui.insert()
+        except Exception as e:
+            return {"ok": False, "error": "ui.insert: %s" % e, "before": before,
+                    "after": mixer.trackCount()}
+    after = mixer.trackCount()
+    return {"ok": after - before == n, "before": before, "after": after,
+            "added": after - before}
+
 _HANDLERS = {
     'playlist_track_list': _h_playlist_track_list,
     'playlist_get_track': _h_playlist_get_track,
@@ -1763,4 +1812,6 @@ _HANDLERS = {
     "apply_ops": _h_apply_ops,
     "state_dump": _h_state_dump,
     "session_info": _h_session_info,
+    "mixer_select_tracks": _h_mixer_select_tracks,
+    "mixer_add_tracks": _h_mixer_add_tracks,
 }
