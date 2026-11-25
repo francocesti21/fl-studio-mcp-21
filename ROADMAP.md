@@ -45,3 +45,14 @@ Tool names below are the real ones; the full list is in the README.
 - Micro-tonal pitch: scales are rounded to the nearest semitone (12-tone MIDI).
 - Running a piano-roll script without the user arming it once per session.
 - More than one FL Studio instance on one machine is not wired up.
+
+## fl-studio-mcp-21 (Franco / 21 Academy)
+
+Hecho (2.1.0):
+- Organizador en lote (`apply_ops` en el controlador): nombre, color, volumen y ruteo exclusivo del mixer; nombre y color de la playlist; nombre, color y destino de los canales.
+- `fl_build_template`, `fl_organize_session`, `fl_mirror_playlist` y `fl_session_info`, todos con verificación y un solo paso para deshacer.
+
+Siguiente:
+- Probar en vivo qué funciones nuevas expone la API del mixer en FL 2025 (por ejemplo, para crear pistas o enlazarlas con la playlist) y usarlas si existen.
+- Organizar una sesión de stems: detectar copias y RAW vs procesado, clasificar por nombre, mandar cada stem a su propio canal y agrupar en buses.
+- Configuración inicial por productor (volumen por defecto, formato de exportación).

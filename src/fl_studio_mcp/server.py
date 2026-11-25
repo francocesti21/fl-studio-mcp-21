@@ -56,6 +56,7 @@ from .tools import capabilities as capabilities_tools
 from .tools import loader as loader_tools
 from .tools import playlist as playlist_tools
 from .tools import vst as vst_tools
+from .tools import organizer as organizer_tools
 
 logger = logging.getLogger("fl_studio_mcp")
 
@@ -68,6 +69,10 @@ CONNECTION
   status is not READY, tell the user that one step; do not retry other tools.
   One-time setup for the user is `fl-studio-mcp setup` in a terminal, then
   opening FL Studio. `fl-studio-mcp doctor` re-checks at any time.
+
+ORGANIZING A SESSION (fl-studio-mcp-21)
+  Prefer fl_build_template / fl_organize_session / fl_mirror_playlist over
+  many single-track calls or screen clicks: one call, verified, one undo.
 
 LIMITS YOU SHOULD KNOW ABOUT (these are FL API limitations, not server bugs)
   - Cannot load new VST/AU plugin instances. You can only control plugins
@@ -113,6 +118,7 @@ def build_server() -> FastMCP:
     playlist_tools.register(mcp)
     vst_tools.register(mcp)
     visual_tools.register(mcp)      # E-3: fl_screenshot (agent debugging)
+    organizer_tools.register(mcp)   # fl-studio-mcp-21: batch organizer + templates
     return mcp
 
 

@@ -298,5 +298,10 @@ CMD_ARRANGE_GET_SELECTION = "arrange_get_selection"
 
 CMD_ARRANGE_GET_MARKERS = "arrange_get_markers"
 
+# fl-studio-mcp-21: batch session organizer
+CMD_APPLY_OPS = "apply_ops"          # many compact writes in one round trip
+CMD_STATE_DUMP = "state_dump"        # compact state of given targets (verify/undo)
+CMD_SESSION_INFO = "session_info"    # mixer/playlist/channel counts
+
 
 

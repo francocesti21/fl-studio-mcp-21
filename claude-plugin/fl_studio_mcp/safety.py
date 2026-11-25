@@ -184,6 +184,12 @@ def take_snapshot(bridge, scope):
     if kind == "channels_all":
         from .connection import fetch_all_pages
         return fetch_all_pages(bridge, CMD_CHANNEL_LIST, "channels")
+    if kind == "state":                    # fl-studio-mcp-21 organizer
+        import json as _json
+        from .protocol import CMD_STATE_DUMP
+        from .connection import fetch_all_pages
+        targets = _json.loads(arg)
+        return fetch_all_pages(bridge, CMD_STATE_DUMP, "items", params=targets)
     raise ValueError("unknown snapshot scope: %r" % (scope,))
 
 

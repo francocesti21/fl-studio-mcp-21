@@ -4,12 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fl-studio-mcp"
-version = "2.0.0.dev0"
+version = "2.1.0"
 description = "FL Studio MCP server: control FL Studio with Claude, Cursor and other AI assistants - AI mixing, mix diagnosis, plugin control, piano roll and patterns"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
     { name = "rosasynthesiz" },
+    { name = "Franco (21 Academy)" },
 ]
 requires-python = ">=3.10"
 keywords = ["mcp", "mcp-server", "model-context-protocol", "fl-studio", "flstudio", "fruity-loops", "fruityloops", "daw", "music-production", "mixing", "midi", "ai", "ai-music", "claude", "cursor", "codex"]
@@ -82,9 +83,9 @@ fl-studio-mcp = "fl_studio_mcp.server:main"
 fl-studio-mcp-daemon = "fl_studio_mcp.daemon:main"
 
 [project.urls]
-Homepage = "https://rosasynthesiz.com/products/fl-studio-mcp"
-Repository = "https://github.com/rosasynthesiz/flstudio-mcp"
-Issues = "https://github.com/rosasynthesiz/flstudio-mcp/issues"
+Homepage = "https://github.com/francocesti21/fl-studio-mcp-21"
+Repository = "https://github.com/francocesti21/fl-studio-mcp-21"
+Upstream = "https://github.com/rosasynthesiz/flstudio-mcp"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fl_studio_mcp"]

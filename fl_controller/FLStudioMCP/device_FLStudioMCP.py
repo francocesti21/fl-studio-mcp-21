@@ -72,7 +72,7 @@ PROTOCOL_VERSION = 2
 
 # Must equal the server package version. `fl-studio-mcp doctor` compares the
 # two and asks for `fl-studio-mcp setup` when they differ.
-CONTROLLER_VERSION = "2.0.0.dev0"
+CONTROLLER_VERSION = "2.1.0"
 
 SYSEX_MANUFACTURER = 0x7D
 SYSEX_MAGIC = (0x4D, 0x43, 0x50)   # ASCII "MCP"
@@ -1571,6 +1571,135 @@ def _h_playlist_track_list(p):
     return _paginate(n, p.get("start", 0), entry, "tracks")
 
 
+
+# -- 21 Academy: batch session organizer (fl-studio-mcp-21) ------------------
+# One compact command applies many small writes in a single SysEx round trip,
+# so organizing a 30-track session takes a few calls instead of a hundred
+# screen clicks. Ops are short arrays to stay under the SysEx size budget:
+#   ["mn", track, name]            mixer track name
+#   ["mc", track, r, g, b]         mixer track color (RGB 0-255)
+#   ["mC", track, color_int]       mixer track color (raw FL int, used by undo)
+#   ["mv", track, norm]            mixer track volume (0..1, 0.8 = 0 dB)
+#   ["md", track, db]              mixer track volume in dB
+#   ["mx", track]                  remove EVERY send from this track (Master too)
+#   ["mr", src, dst, on]           enable/disable one send src -> dst
+#   ["pn", track, name]            playlist track name (1-based)
+#   ["pc", track, r, g, b]         playlist track color
+#   ["pC", track, color_int]       playlist track color (raw)
+#   ["cn", channel, name]          channel-rack channel name
+#   ["cc", channel, r, g, b]       channel-rack channel color
+#   ["cC", channel, color_int]     channel-rack channel color (raw)
+#   ["ct", channel, mixer_track]   route a channel to a mixer track
+# Routing changes are committed with ONE afterRoutingChanged() at the end.
+
+def _op_apply(op):
+    k = op[0]
+    if k == "mn":
+        mixer.setTrackName(int(op[1]), str(op[2]))
+    elif k == "mc":
+        mixer.setTrackColor(int(op[1]), _rgb_to_int(op[2], op[3], op[4]))
+    elif k == "mC":
+        mixer.setTrackColor(int(op[1]), int(op[2]))
+    elif k == "mv":
+        mixer.setTrackVolume(int(op[1]), max(0.0, min(1.0, float(op[2]))))
+    elif k == "md":
+        mixer.setTrackVolume(int(op[1]), _db_to_norm(float(op[2])))
+    elif k == "mx":
+        src = int(op[1])
+        for dst in range(mixer.trackCount()):
+            if dst != src and mixer.getRouteSendActive(src, dst):
+                mixer.setRouteTo(src, dst, 0)
+        return "route"
+    elif k == "mr":
+        mixer.setRouteTo(int(op[1]), int(op[2]), 1 if op[3] else 0)
+        return "route"
+    elif k == "pn":
+        playlist.setTrackName(int(op[1]), str(op[2]))
+    elif k == "pc":
+        playlist.setTrackColor(int(op[1]), _rgb_to_int(op[2], op[3], op[4]))
+    elif k == "pC":
+        playlist.setTrackColor(int(op[1]), int(op[2]))
+    elif k == "cn":
+        channels.setChannelName(int(op[1]), str(op[2]))
+    elif k == "cc":
+        channels.setChannelColor(int(op[1]), _rgb_to_int(op[2], op[3], op[4]))
+    elif k == "cC":
+        channels.setChannelColor(int(op[1]), int(op[2]))
+    elif k == "ct":
+        channels.setTargetFxTrack(int(op[1]), int(op[2]))
+        return "route"
+    else:
+        raise _ClientError("unknown op %r" % (k,))
+    return None
+
+
+def _h_apply_ops(p):
+    ops = p.get("ops") or []
+    done, errors, routed = 0, [], False
+    for n, op in enumerate(ops):
+        try:
+            if _op_apply(op) == "route":
+                routed = True
+            done += 1
+        except _ClientError:
+            raise
+        except Exception as e:
+            errors.append([n, str(e)[:60]])
+    if routed:
+        try:
+            mixer.afterRoutingChanged()
+        except Exception:
+            pass
+    return {"ok": not errors, "applied": done, "errors": errors[:5]}
+
+
+def _h_state_dump(p):
+    """Compact state of the requested targets, for verify + undo.
+    params: m=[mixer tracks], pl=[playlist tracks], ch=[channels], start.
+    Entries: mixer  ["m", i, name, color, vol_norm, [dst...]]
+             playlist ["p", t, name, color]
+             channel  ["c", i, name, color, target]
+    Paginated by payload budget (start/next_start over the flat item list)."""
+    items = ([("m", int(i)) for i in (p.get("m") or [])]
+             + [("p", int(i)) for i in (p.get("pl") or [])]
+             + [("c", int(i)) for i in (p.get("ch") or [])])
+
+    def entry(n):
+        kind, i = items[n]
+        if kind == "m":
+            if i >= mixer.trackCount():
+                return ["m", i, None]
+            dsts = [d for d in range(mixer.trackCount())
+                    if d != i and mixer.getRouteSendActive(i, d)]
+            return ["m", i, mixer.getTrackName(i)[:32], _safe_track_color(i),
+                    round(mixer.getTrackVolume(i), 4), dsts]
+        if kind == "p":
+            if i > playlist.trackCount():
+                return ["p", i, None]
+            return ["p", i, playlist.getTrackName(i)[:32],
+                    int(playlist.getTrackColor(i)) & 0xFFFFFF]
+        if i >= channels.channelCount():
+            return ["c", i, None]
+        try:
+            tgt = channels.getTargetFxTrack(i)
+        except Exception:
+            tgt = None
+        return ["c", i, channels.getChannelName(i)[:32], _safe_channel_color(i), tgt]
+    return _paginate(len(items), p.get("start", 0), entry, "items")
+
+
+def _h_session_info(p):
+    """Counts the organizer needs before planning (mixer insert count etc.)."""
+    out = {"mixer_tracks": mixer.trackCount(),
+           "playlist_tracks": playlist.trackCount(),
+           "channels": channels.channelCount()}
+    try:
+        out["api_version"] = general.getVersion()
+    except Exception:
+        pass
+    return out
+
+
 _HANDLERS = {
     'playlist_track_list': _h_playlist_track_list,
     'playlist_get_track': _h_playlist_get_track,
@@ -1631,4 +1760,7 @@ _HANDLERS = {
     "pattern_select": _h_pattern_select,
     "pattern_rename": _h_pattern_rename,
     "pattern_get_length": _h_pattern_get_length,
+    "apply_ops": _h_apply_ops,
+    "state_dump": _h_state_dump,
+    "session_info": _h_session_info,
 }
