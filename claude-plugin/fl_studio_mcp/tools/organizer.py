@@ -358,7 +358,7 @@ def register(mcp: FastMCP) -> None:
         start_track: Annotated[int, Field(ge=1)] = 1,
         buses: Annotated[bool, Field(description="One bus per group ('BUS DRUMS'...).")] = True,
         mixbus: Annotated[Optional[str], Field(description="Final bus before Master; empty to skip.")] = "MIXBUS",
-        playlist: Annotated[bool, Field(description="Name and color playlist tracks 1..N like the channels.")] = True,
+        playlist: Annotated[bool, Field(description="Name and color playlist tracks 1..N like the channels. Set FALSE if the user will link the tracks with 'Assign to new Audio track(s)': FL treats named playlist tracks as used and puts the linked tracks after them (linked tracks inherit name and color anyway).")] = True,
         hue_start: Annotated[float, Field(description="Rainbow start hue in degrees.")] = 0.0,
         hue_end: Annotated[float, Field(description="Rainbow end hue in degrees.")] = 285.0,
         preview: Annotated[bool, Field(description="Only return the plan, change nothing.")] = False,
