@@ -119,7 +119,8 @@ EXAMPLE_GROUPS = [  # example only (tests/docs); the tool has no default layout
 def plan_template(groups, *, start_track=1, buses=True, bus_prefix="BUS ",
                   mixbus="MIXBUS", sum_color=(176, 176, 176),
                   mixbus_color=(255, 255, 255), hue_start=0.0, hue_end=285.0,
-                  playlist=True, playlist_start=1) -> Dict[str, Any]:
+                  playlist=True, playlist_start=1, link_track=None,
+                  link_color=(58, 58, 58)) -> Dict[str, Any]:
     """Turn a group spec into a full mixer + playlist layout. PURE.
 
     groups: [{"name", "count", "color"?, "sum"?}] -- channels are numbered
@@ -168,6 +169,16 @@ def plan_template(groups, *, start_track=1, buses=True, bus_prefix="BUS ",
         mix = {"track": t, "name": mixbus, "color": tuple(mixbus_color), "role": "mixbus"}
         tracks.append(mix)
         t += 1
+    link = None
+    if link_track:
+        # Selection helper: every channel also sends here, and this track has
+        # NO output, so nothing is heard. In FL, "Select > Tracks routed to
+        # this one" on it selects every channel at once, ready for
+        # "Assign to new Audio track(s)".
+        link = {"track": t, "name": link_track, "color": tuple(link_color),
+                "role": "link", "route_to": []}
+        tracks.append(link)
+        t += 1
     top = mix["track"] if mix else 0
     # routing
     for g, rows in group_rows:
@@ -180,6 +191,10 @@ def plan_template(groups, *, start_track=1, buses=True, bus_prefix="BUS ",
         else:
             for r in rows:
                 r["route_to"] = [after_bus]
+    if link:
+        for _, rows in group_rows:
+            for r in rows:
+                r["route_to"] = r["route_to"] + [link["track"]]
     for s in sum_of.values():
         s["route_to"] = [top]
     if mix:
@@ -361,6 +376,7 @@ def register(mcp: FastMCP) -> None:
         playlist: Annotated[bool, Field(description="Name and color playlist tracks 1..N like the channels. Set FALSE if the user will link the tracks with 'Assign to new Audio track(s)': FL treats named playlist tracks as used and puts the linked tracks after them (linked tracks inherit name and color anyway).")] = True,
         hue_start: Annotated[float, Field(description="Rainbow start hue in degrees.")] = 0.0,
         hue_end: Annotated[float, Field(description="Rainbow end hue in degrees.")] = 285.0,
+        link_track: Annotated[Optional[str], Field(description="Name of an extra helper track (e.g. 'LINK') that every channel also sends to. It has no output, so it is silent. In FL: right-click it > Select > Tracks routed to this one selects all channels in one step, then 'Assign to new Audio track(s)' links them to the playlist in order. When using it, set playlist=false.")] = None,
         preview: Annotated[bool, Field(description="Only return the plan, change nothing.")] = False,
     ) -> dict:
         """Build the user's own session template in one call, from their
@@ -373,7 +389,8 @@ def register(mcp: FastMCP) -> None:
         gs = [g.model_dump() for g in groups]
         plan = plan_template(gs, start_track=start_track, buses=buses,
                              mixbus=mixbus or None, playlist=playlist,
-                             hue_start=hue_start, hue_end=hue_end)
+                             hue_start=hue_start, hue_end=hue_end,
+                             link_track=link_track or None)
         summary = [{"track": r["track"], "name": r["name"], "color": hex_of(r["color"]),
                     "to": r.get("route_to")} for r in plan["mixer"]]
         if preview:

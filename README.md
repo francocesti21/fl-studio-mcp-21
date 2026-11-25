@@ -25,6 +25,15 @@ Drums 1-5, Melodías 1-5, Efectos 1-5  -> BUS DRUMS / BUS MELODÍAS / BUS EFECTO
 Voces 1-5, Armonías 1-5               -> BUS VOCES / BUS ARMONÍAS               -> VOCES        ┴-> MIXBUS -> Master
 ```
 
+## Truco: canal LINK para enlazar con la playlist en dos clics
+
+Con `link_track="LINK"`, cada canal también envía al track LINK. Ese track no tiene salida, así que no se escucha nada. En FL:
+
+1. Clic derecho en LINK → *Select* → *Tracks routed to this one*. Quedan seleccionados todos los canales.
+2. Clic derecho en uno de ellos → *Assign to new Audio track(s)*. Todos quedan enlazados en la playlist, en orden, con su nombre y color.
+
+Si vas a hacer esto, no nombres la playlist antes (`playlist=false`): FL considera ocupados los tracks con nombre y crea los tracks enlazados después de ellos.
+
 ## Límites de FL Studio (no son errores del MCP)
 
 La API de scripts de FL **no permite** lo siguiente:

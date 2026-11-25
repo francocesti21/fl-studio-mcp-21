@@ -178,3 +178,14 @@ def test_every_request_fits_sysex_budget():
         assert org._chunks_ok(ops)
     long_restore = org.restore_ops(["m", 3, "x" * 32, 0xFFFFFF, 0.8, list(range(4, 20))])
     assert org._chunks_ok(long_restore)
+
+
+def test_link_track_collects_every_channel_silently():
+    plan = org.plan_template(org.EXAMPLE_GROUPS, link_track="LINK", playlist=False)
+    by = {r["name"]: r for r in plan["mixer"]}
+    link = by["LINK"]["track"]
+    assert by["LINK"]["route_to"] == []                 # no output: silent
+    chans = [r for r in plan["mixer"] if r["role"] == "channel"]
+    assert all(link in r["route_to"] and len(r["route_to"]) == 2 for r in chans)
+    assert all(link not in r["route_to"] for r in plan["mixer"] if r["role"] != "channel")
+    assert plan["playlist"] == []
