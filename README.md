@@ -18,7 +18,7 @@ Todas estas herramientas:
 - **Se deshacen en un paso** con `fl_rollback_last_change`.
 - Viajan en mensajes chicos por MIDI (SysEx). Una plantilla de 33 pistas tarda segundos, sin clics en pantalla.
 
-La plantilla por defecto es la de Franco:
+No trae una plantilla fija: cada productor describe la suya en el chat (grupos, cantidad de canales, colores, buses) y Claude la arma. Un ejemplo:
 
 ```
 Drums 1-5, Melodías 1-5, Efectos 1-5  -> BUS DRUMS / BUS MELODÍAS / BUS EFECTOS -> INSTRUMENTAL ┐

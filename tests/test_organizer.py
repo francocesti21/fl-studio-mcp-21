@@ -92,7 +92,7 @@ def test_rainbow_endpoints():
 
 
 def test_plan_matches_franco_template():
-    plan = org.plan_template(org.DEFAULT_GROUPS)
+    plan = org.plan_template(org.EXAMPLE_GROUPS)
     by = {r["track"]: r for r in plan["mixer"]}
     assert by[1]["name"] == "Drums 1" and by[25]["name"] == "Armonías 5"
     assert [by[t]["name"] for t in range(26, 34)] == [
@@ -121,7 +121,7 @@ def test_build_template_applies_verifies_and_undoes(sim_env):
     sim, bridge = sim_env
     before = (list(sim.m_names), list(sim.m_colors), {k: set(v) for k, v in sim.routes.items()},
               list(sim.p_names), list(sim.p_colors))
-    res = _tool("fl_build_template")()
+    res = _tool("fl_build_template")(groups=[org.GroupSpec(**g) for g in org.EXAMPLE_GROUPS])
     assert res["ok"], res
     assert res["mismatches"] == [] and res["errors"] == []
     assert sim.m_names[1] == "Drums 1" and sim.m_names[33] == "MIXBUS"
@@ -143,14 +143,14 @@ def test_template_refuses_when_mixer_too_small(controller, changelog, monkeypatc
     install(controller, sim)
     bridge = ControllerBridge(controller)
     monkeypatch.setattr(org, "get_bridge", lambda: bridge)
-    res = _tool("fl_build_template")()
+    res = _tool("fl_build_template")(groups=[org.GroupSpec(**g) for g in org.EXAMPLE_GROUPS])
     assert res["ok"] is False and res["add"] == 8
     assert sim.m_names[1] == "Insert 1"          # nothing written
 
 
 def test_preview_changes_nothing(sim_env):
     sim, _ = sim_env
-    res = _tool("fl_build_template")(preview=True)
+    res = _tool("fl_build_template")(groups=[org.GroupSpec(**g) for g in org.EXAMPLE_GROUPS], preview=True)
     assert res["preview"] and len(res["mixer"]) == 33
     assert sim.m_names[1] == "Insert 1"
 
@@ -172,7 +172,7 @@ def test_organize_session_channels_and_mirror(sim_env):
 
 
 def test_every_request_fits_sysex_budget():
-    plan = org.plan_template(org.DEFAULT_GROUPS)
+    plan = org.plan_template(org.EXAMPLE_GROUPS)
     for r in plan["mixer"]:
         ops = org.mixer_ops(r["track"], r["name"], r["color"], None, r["route_to"])
         assert org._chunks_ok(ops)

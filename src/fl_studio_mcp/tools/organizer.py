@@ -107,7 +107,7 @@ def mixer_ops(track: int, name=None, color=None, volume_db=None,
 
 # -- layout planner -----------------------------------------------------------
 
-DEFAULT_GROUPS = [
+EXAMPLE_GROUPS = [  # example only (tests/docs); the tool has no default layout
     {"name": "Drums", "count": 5, "sum": "INSTRUMENTAL"},
     {"name": "Melodías", "count": 5, "sum": "INSTRUMENTAL"},
     {"name": "Efectos", "count": 5, "sum": "INSTRUMENTAL"},
@@ -354,7 +354,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations={"title": "Build mixer + playlist template", **_WR})
     def fl_build_template(
-        groups: Annotated[Optional[List[GroupSpec]], Field(description="Groups in order. Default: Drums, Melodías, Efectos (-> INSTRUMENTAL), Voces, Armonías (-> VOCES), 5 each.")] = None,
+        groups: Annotated[List[GroupSpec], Field(description="The user's groups, in order, exactly as they describe them (names, channel counts, colors, which intermediate bus each feeds). Ask the user if anything is unclear; there is no built-in layout.")],
         start_track: Annotated[int, Field(ge=1)] = 1,
         buses: Annotated[bool, Field(description="One bus per group ('BUS DRUMS'...).")] = True,
         mixbus: Annotated[Optional[str], Field(description="Final bus before Master; empty to skip.")] = "MIXBUS",
@@ -363,12 +363,14 @@ def register(mcp: FastMCP) -> None:
         hue_end: Annotated[float, Field(description="Rainbow end hue in degrees.")] = 285.0,
         preview: Annotated[bool, Field(description="Only return the plan, change nothing.")] = False,
     ) -> dict:
-        """Build a full session template in one call: numbered channels per
-        group in a rainbow gradient, one bus per group, intermediate sums
-        (e.g. INSTRUMENTAL / VOCES), a MIXBUS to Master, and matching playlist
-        names/colors. Checks first that the project has enough mixer tracks
+        """Build the user's own session template in one call, from their
+        description: numbered channels per group (a group color, or a
+        rainbow gradient for groups without one), optional bus per group,
+        optional intermediate buses (e.g. INSTRUMENTAL), an optional final
+        bus to Master, and matching playlist names/colors. Use preview=true
+        to show the plan first. Checks first that the project has enough mixer tracks
         (scripts cannot add them). ONE rollback unit."""
-        gs = [g.model_dump() for g in groups] if groups else DEFAULT_GROUPS
+        gs = [g.model_dump() for g in groups]
         plan = plan_template(gs, start_track=start_track, buses=buses,
                              mixbus=mixbus or None, playlist=playlist,
                              hue_start=hue_start, hue_end=hue_end)
