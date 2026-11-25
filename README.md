@@ -4,6 +4,18 @@ MCP para controlar **FL Studio** desde Claude, pensado para producir y enseñar 
 
 Está basado en [rosasynthesiz/flstudio-mcp](https://github.com/rosasynthesiz/flstudio-mcp) (licencia MIT), con mejoras propias de 21 Academy. La documentación original está en [README_UPSTREAM.md](README_UPSTREAM.md).
 
+## Primeros pasos (para productores)
+
+1. Instala el MCP (ver *Instalación*, abajo) y abre FL Studio.
+2. Descríbele tu template a Claude en el chat. Por ejemplo: *"10 canales de drums en rojo, 5 de melodías, 5 de voces, un bus por grupo, un bus INSTRUMENTAL y un MIXBUS"*.
+3. Claude revisa cuántas pistas tiene tu mixer. Si faltan, te dice cuántas agregar: clic derecho en una pista → *Insert multiple* → escribes el número. FL no permite que un script cree pistas.
+4. Claude arma todo el mixer en segundos: nombres, colores, buses y ruteo.
+5. Claude selecciona los canales. Tú haces clic derecho en uno → *Assign to new Audio track(s)*, y quedan enlazados en la playlist, en orden.
+
+Son unos 3 clics en total. Si tienes activado *computer use* en la app de escritorio de Claude, Claude puede hacer esos clics por ti, pero no es necesario.
+
+**Consejo:** guarda como proyecto de inicio uno con unas 40 pistas en el mixer. Así nunca te faltan pistas y solo queda el clic de *Assign*. Y cuando tengas un template que te guste, guárdalo como plantilla de FL, con tus plugins ya cargados.
+
 ## Qué agrega esta versión
 
 | Herramienta | Qué hace |
