@@ -25,7 +25,13 @@ Drums 1-5, Melodías 1-5, Efectos 1-5  -> BUS DRUMS / BUS MELODÍAS / BUS EFECTO
 Voces 1-5, Armonías 1-5               -> BUS VOCES / BUS ARMONÍAS               -> VOCES        ┴-> MIXBUS -> Master
 ```
 
-## Truco: canal LINK para enlazar con la playlist en dos clics
+## Enlazar con la playlist: un solo clic
+
+`fl_mixer_select_tracks` selecciona los canales desde el script (probado en FL 2026). Después, en FL: clic derecho en uno de ellos → *Assign to new Audio track(s)*. Quedan todos enlazados en orden, con su nombre y color. Para que caigan desde el track 1, no nombres la playlist antes (`playlist=false`).
+
+Crear pistas de mixer desde el script **no funciona** (probado: `ui.insert` y el comando global Insert no agregan pistas). Hay que usar *Mixer > Insert multiple*. Ojo: la última pista del mixer es un espacio oculto, así que necesitas una pista más de las que usa el template.
+
+## Alternativa: canal LINK
 
 Con `link_track="LINK"`, cada canal también envía al track LINK. Ese track no tiene salida, así que no se escucha nada. En FL:
 
