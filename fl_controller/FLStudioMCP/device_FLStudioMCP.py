@@ -72,7 +72,7 @@ PROTOCOL_VERSION = 2
 
 # Must equal the server package version. `fl-studio-mcp doctor` compares the
 # two and asks for `fl-studio-mcp setup` when they differ.
-CONTROLLER_VERSION = "2.2.0"
+CONTROLLER_VERSION = "2.2.1"
 
 SYSEX_MANUFACTURER = 0x7D
 SYSEX_MAGIC = (0x4D, 0x43, 0x50)   # ASCII "MCP"
@@ -1705,22 +1705,27 @@ def _h_session_info(p):
 
 def _h_mixer_select_tracks(p):
     """Select exactly these mixer tracks (what a user does with clicks), so
-    a following right-click acts on all of them."""
-    want = [int(t) for t in (p.get("tracks") or [])]
+    a following right-click acts on all of them.
+    Order matters (verified FL 2026, API 45): setActiveTrack() selects ONLY
+    that track, so it goes FIRST, then the rest are added with selectTrack()."""
+    want = sorted(set(int(t) for t in (p.get("tracks") or [])))
     try:
         mixer.deselectAll()
     except Exception:
         pass
-    for t in want:
-        if not mixer.isTrackSelected(t):
-            mixer.selectTrack(t)
     if want:
         try:
             mixer.setActiveTrack(want[0])
         except Exception:
             pass
+    for t in want:
+        if not mixer.isTrackSelected(t):
+            try:
+                mixer.selectTrack(t, 1)
+            except TypeError:
+                mixer.selectTrack(t)
     sel = [t for t in range(mixer.trackCount()) if mixer.isTrackSelected(t)]
-    return {"ok": sel == sorted(want), "selected": sel[:64]}
+    return {"ok": sel == want, "selected": sel[:64]}
 
 
 def _h_mixer_add_tracks(p):
@@ -1739,15 +1744,22 @@ def _h_mixer_add_tracks(p):
         mixer.setActiveTrack(max(1, before - 2))
     except Exception:
         pass
-    for _ in range(n):
-        try:
-            ui.insert()
-        except Exception as e:
-            return {"ok": False, "error": "ui.insert: %s" % e, "before": before,
-                    "after": mixer.trackCount()}
+    tried = []
+    # Strategy 1: ui.insert() (verified: does NOT add tracks on FL 2026).
+    # Strategy 2: global transport "Insert" command.
+    fpt = getattr(midi, "FPT_Insert", None)
+    if fpt is not None:
+        tried.append("FPT_Insert")
+        for _ in range(n):
+            try:
+                transport.globalTransport(fpt, 1)
+                transport.globalTransport(fpt, 0)
+            except Exception as e:
+                tried.append("error: %s" % str(e)[:40])
+                break
     after = mixer.trackCount()
     return {"ok": after - before == n, "before": before, "after": after,
-            "added": after - before}
+            "added": after - before, "tried": tried}
 
 _HANDLERS = {
     'playlist_track_list': _h_playlist_track_list,
