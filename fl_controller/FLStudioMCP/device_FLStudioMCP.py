@@ -72,7 +72,7 @@ PROTOCOL_VERSION = 2
 
 # Must equal the server package version. `fl-studio-mcp doctor` compares the
 # two and asks for `fl-studio-mcp setup` when they differ.
-CONTROLLER_VERSION = "2.4.0"
+CONTROLLER_VERSION = "2.5.0"
 
 SYSEX_MANUFACTURER = 0x7D
 SYSEX_MAGIC = (0x4D, 0x43, 0x50)   # ASCII "MCP"
@@ -1859,6 +1859,24 @@ def _browser_reach(target, skip, trace):
     return _browser_scan(target, _BROWSER_NEXT, _BROWSER_SCAN_CAP, trace)
 
 
+def _browser_climb(cap=60):
+    """Go up to the Browser's root level folding folders on the way, like
+    pressing Left repeatedly: Left folds an open folder, or moves to the parent.
+    Stops when two Lefts in a row change nothing (a folded root item)."""
+    last, still = None, 0
+    for _ in range(cap):
+        ui.left()
+        cap_now = _browser_caption()
+        if cap_now == last:
+            still += 1
+            if still >= 2:
+                return True
+        else:
+            still = 0
+        last = cap_now
+    return False
+
+
 def _browser_expand():
     if hasattr(ui, "toggleBrowserNode"):
         ui.toggleBrowserNode(1)
@@ -1885,6 +1903,9 @@ def _h_browser_find(p):
 
     trace = []
     _browser_focus()
+    if p.get("climb"):
+        # Fold everything above the current item first: the root list is short.
+        trace.append("climb:%s" % _browser_climb())
 
     # Root: scan forward, then backward (the list may start anywhere).
     if not _browser_scan(path[0], _BROWSER_NEXT, _BROWSER_SCAN_CAP, trace):
@@ -1917,6 +1938,8 @@ def _h_browser_collapse(p):
     path = [str(x) for x in (p.get("path") or [])]
     skips = p.get("skips") or []
     _browser_focus()
+    if p.get("climb"):
+        return {"collapsed": _browser_climb()}
     collapsed = 0
     if _norm_caption(_browser_caption()) != _norm_caption(path[-1] if path else ""):
         return {"collapsed": 0, "reason": "selection moved"}
@@ -2039,6 +2062,8 @@ def _h_ui_steps(p):
                 r = [i for i in range(channels.channelCount()) if channels.isChannelSelected(i)]
             elif name == "chan_names":
                 r = [channels.getChannelName(i)[:16] for i in range(min(channels.channelCount(), 12))]
+            elif name in ("left", "right", "up", "down"):
+                getattr(ui, name)(); r = _browser_caption()[:30]
             elif name == "jog":
                 ui.jog(int(args[0])); r = _browser_caption()[:30]
             elif name == "caption":

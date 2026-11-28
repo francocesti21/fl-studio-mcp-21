@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2.5.0
+- `browser_find` / `browser_collapse` accept `climb`: fold the Browser up to its root first (like pressing Left), so the walk only crosses the short root list instead of everything that was left open. `ui.jog` turned out not to move the Browser on FL 26.1.
+- `fl_ui_steps`: `left`, `right`, `up`, `down`.
+
 ### 2.4.0
 - **Much faster, calmer plugin loads.** The server reads each step's position from the plugin database on disk and the controller jumps there with `ui.jog` instead of walking the Browser item by item (falls back to walking if a jump misses). After a load, `browser_collapse` folds the walked folders back so the Browser stays short.
 - `fl_ui_steps`: `jog`, `caption`, `expand` steps for diagnosis.
