@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2.3.1
+- **Plugins land on the right track.** Measured on FL 26.1: a Browser effect goes into the next free slot of the mixer track the *selected channel* feeds, so `fl_load_plugin` points that channel at the requested track and restores it afterwards. Instruments: the channel selection is cleared first (otherwise FL replaces the selected channel's plugin) and restored if nothing new appeared.
+- `fl_ui_steps`: whitelisted UI/mixer steps for diagnosing loads.
+
 ### 2.3.0
 - **`fl_load_plugin` now loads plugins.** Effects go into the first free slot of a mixer track, instruments become a new Channel Rack channel. It finds the plugin's `.fst` in FL's plugin database, walks FL's own Browser to it with the official scripting API (`ui.navigateBrowser`, `ui.toggleBrowserNode`; no mouse or keyboard simulation), confirms it, and reports success only after the plugin actually appears. Needs FL scripting API 34+.
 - **`fl_browser_peek`:** shows the focused Browser item and the next captions, to diagnose loading.

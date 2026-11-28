@@ -72,7 +72,7 @@ PROTOCOL_VERSION = 2
 
 # Must equal the server package version. `fl-studio-mcp doctor` compares the
 # two and asks for `fl-studio-mcp setup` when they differ.
-CONTROLLER_VERSION = "2.3.0"
+CONTROLLER_VERSION = "2.3.1"
 
 SYSEX_MANUFACTURER = 0x7D
 SYSEX_MAGIC = (0x4D, 0x43, 0x50)   # ASCII "MCP"
@@ -1844,8 +1844,10 @@ def _h_browser_find(p):
     ["Plugin database","Installed","Effects","VST3","Pro-Q 3"]), expanding each
     folder. With confirm=True, confirms the last node (loads the plugin).
 
-    Effects load into the focused mixer track: pass `track` (and optionally
-    `slot`) to select it first. Returns a short trace for diagnosis."""
+    Where FL puts the plugin (verified FL 26.1, API 45): an EFFECT goes into the
+    next free slot of the mixer track the SELECTED CHANNEL feeds (see
+    _h_fx_target); a GENERATOR replaces the selected channel's plugin unless no
+    channel is selected. Returns a short trace for diagnosis."""
     path = [str(x) for x in (p.get("path") or [])]
     if not path:
         raise _ClientError("path is required")
@@ -1855,19 +1857,6 @@ def _h_browser_find(p):
         raise _ClientError("FL is busy (a dialog or menu is open)", code="busy")
 
     trace = []
-    track = p.get("track")
-    if track is not None:
-        track = int(track)
-        if track < 0 or track >= mixer.trackCount():
-            raise _ClientError("track out of range")
-        mixer.setTrackNumber(track, getattr(midi, "curfxScrollToMakeVisible", 1))
-        slot = p.get("slot")
-        if slot is not None:
-            try:
-                mixer.focusEditor(track, int(slot))
-            except Exception as e:
-                trace.append("focusEditor:%s" % type(e).__name__)
-
     _browser_focus()
 
     # Root: scan forward, then backward (the list may start anywhere).
@@ -1905,6 +1894,46 @@ def _h_browser_peek(p):
         items.pop()
     return {"items": items}
 
+
+
+
+def _h_fx_target(p):
+    """Aim Browser effect loads: FL loads an effect into the mixer track that the
+    selected channel feeds. op=set -> point the selected channel at `track` and
+    return the previous target; op=restore -> put `previous` back on `channel`."""
+    op = p.get("op", "set")
+    if op == "restore":
+        channels.setTargetFxTrack(int(p["channel"]), int(p["previous"]))
+        return {"restored": True}
+    if channels.channelCount() == 0:
+        raise _ClientError("The project has no channels; add any channel first", code="no_channel")
+    track = int(p["track"])
+    if track < 0 or track >= mixer.trackCount():
+        raise _ClientError("track out of range")
+    ch = channels.selectedChannel()
+    if ch < 0:
+        ch = 0
+        channels.selectOneChannel(ch)
+    previous = channels.getTargetFxTrack(ch)
+    channels.setTargetFxTrack(ch, track)
+    return {"channel": ch, "previous": previous}
+
+
+def _h_channel_selection(p):
+    """op=save -> selected channel indexes; op=clear -> deselect all;
+    op=restore -> select exactly `selected`."""
+    op = p.get("op", "save")
+    n = channels.channelCount()
+    if op == "clear":
+        channels.deselectAll()
+        return {"cleared": True}
+    if op == "restore":
+        channels.deselectAll()
+        for i in p.get("selected") or []:
+            if 0 <= int(i) < channels.channelCount():
+                channels.selectChannel(int(i), 1)
+        return {"restored": True}
+    return {"selected": [i for i in range(n) if channels.isChannelSelected(i)][:64], "count": n}
 
 
 def _h_ui_steps(p):
@@ -1949,6 +1978,18 @@ def _h_ui_steps(p):
                 channels.setTargetFxTrack(ch, int(args[0])); r = ch
             elif name == "chan_target_get":
                 ch = channels.selectedChannel(); r = [ch, channels.getTargetFxTrack(ch)]
+            elif name == "chan_deselect_all":
+                channels.deselectAll(); r = None
+            elif name == "chan_select_one":
+                channels.selectOneChannel(int(args[0])); r = None
+            elif name == "chan_count":
+                r = channels.channelCount()
+            elif name == "chan_selected":
+                r = [i for i in range(channels.channelCount()) if channels.isChannelSelected(i)]
+            elif name == "chan_names":
+                r = [channels.getChannelName(i)[:16] for i in range(min(channels.channelCount(), 12))]
+            elif name == "undo":
+                general.undoUp(); r = None
             elif name == "slots":
                 t = int(args[0])
                 r = [s for s in range(10) if plugins.isValid(t, s)]
@@ -2030,4 +2071,6 @@ _HANDLERS = {
     "browser_find": _h_browser_find,
     "browser_peek": _h_browser_peek,
     "ui_steps": _h_ui_steps,
+    "fx_target": _h_fx_target,
+    "channel_selection": _h_channel_selection,
 }

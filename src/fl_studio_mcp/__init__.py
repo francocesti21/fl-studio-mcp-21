@@ -6,7 +6,7 @@ try:  # one version: pyproject.toml
     from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("fl-studio-mcp")
 except Exception:  # pragma: no cover - source checkout without metadata
-    __version__ = "2.3.0"
+    __version__ = "2.3.1"
 
 from .connection import (
     FLBridge,

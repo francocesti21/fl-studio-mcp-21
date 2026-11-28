@@ -56,8 +56,23 @@ def _channel_count(bridge):
     return int((bridge.call(protocol.CMD_SESSION_INFO) or {}).get("channels", 0))
 
 
+def _wait_for(check, sleep):
+    deadline = time.time() + _VERIFY_SECONDS
+    while True:
+        res = check()
+        if res is not None or time.time() >= deadline:
+            return res
+        sleep(0.25)
+
+
 def load_plugin(bridge, name, kind="auto", track=None, sleep=time.sleep):
-    """Resolve, walk the Browser, confirm, then verify. Returns a result dict."""
+    """Resolve, aim, walk the Browser, confirm, verify, restore.
+
+    Verified on FL 26.1 (API 45): confirming a Browser effect puts it in the
+    next free slot of the mixer track the SELECTED CHANNEL feeds, so we point
+    that channel at `track` first and restore it after. A confirmed generator
+    replaces the selected channel's plugin, so we deselect all channels first
+    (and restore the selection after)."""
     found = pl.resolve_plugin(name, kind)
     if not found.get("found"):
         return {"ok": False, "error": found.get("error") or "No installed plugin matches '%s'." % name,
@@ -67,45 +82,58 @@ def load_plugin(bridge, name, kind="auto", track=None, sleep=time.sleep):
         return {"ok": False, "error": "Several plugins match '%s'; pick one." % name,
                 "candidates": sorted({m["name"] for m in matches})}
     target = matches[0]
-    is_fx = target["kind"] == "effect"
-    if is_fx and track is None:
-        return {"ok": False, "error": "Effects need a mixer track (track=...)."}
+    find = {"path": target["path"], "confirm": True}
 
-    params = {"path": target["path"], "confirm": True}
-    if is_fx:
+    if target["kind"] == "effect":
+        if track is None:
+            return {"ok": False, "error": "Effects need a mixer track (track=...)."}
         before = _effect_slots(bridge, track)
-        free = [s for s in range(10) if s not in before]
-        if not free:
+        if len(before) >= 10:
             return {"ok": False, "error": "Mixer track %d has no free effect slot." % track}
-        params.update({"track": track, "slot": free[0]})
-    else:
-        before = _channel_count(bridge)
+        aim = bridge.call(protocol.CMD_FX_TARGET, {"op": "set", "track": track}) or {}
+        try:
+            walk = bridge.call(protocol.CMD_BROWSER_FIND, find, timeout=_FIND_TIMEOUT) or {}
+            if not walk.get("found"):
+                return {"ok": False, "error": "Could not reach the plugin in FL's Browser.",
+                        "plugin": target["name"], "browser": walk}
 
-    walk = bridge.call(protocol.CMD_BROWSER_FIND, params, timeout=_FIND_TIMEOUT) or {}
-    if not walk.get("found"):
-        return {"ok": False, "error": "Could not reach the plugin in FL's Browser.",
+            def check():
+                after = _effect_slots(bridge, track)
+                new = {s: n for s, n in after.items() if s not in before}
+                return sorted(new.items())[0] if new else None
+            hit = _wait_for(check, sleep)
+        finally:
+            if "channel" in aim:
+                bridge.call(protocol.CMD_FX_TARGET, {"op": "restore", "channel": aim["channel"],
+                                                      "previous": aim["previous"]})
+        if hit:
+            return {"ok": True, "loaded": hit[1], "kind": "effect", "track": track,
+                    "slot": hit[0], "format": target["format"]}
+        return {"ok": False, "error": "FL reached the plugin but it did not appear on track %d." % track,
                 "plugin": target["name"], "browser": walk}
 
-    # FL loads after the script callback returns: poll until it shows up.
-    deadline = time.time() + _VERIFY_SECONDS
-    while True:
-        if is_fx:
-            after = _effect_slots(bridge, track)
-            new = {s: n for s, n in after.items() if before.get(s) != n}
-            if new:
-                slot, loaded = sorted(new.items())[0]
-                return {"ok": True, "loaded": loaded, "kind": "effect", "track": track,
-                        "slot": slot, "format": target["format"]}
-        else:
-            after = _channel_count(bridge)
-            if after > before:
-                return {"ok": True, "loaded": target["name"], "kind": "generator",
-                        "channel": after - 1, "format": target["format"]}
-        if time.time() >= deadline:
-            return {"ok": False, "error": "FL reached the plugin but nothing new appeared.",
-                    "plugin": target["name"], "browser": walk,
-                    "hint": "Click the FL window once (so its Browser can take focus) and retry."}
-        sleep(0.25)
+    # generator
+    sel = bridge.call(protocol.CMD_CHANNEL_SELECTION, {"op": "save"}) or {}
+    before = int(sel.get("count", _channel_count(bridge)))
+    bridge.call(protocol.CMD_CHANNEL_SELECTION, {"op": "clear"})
+    hit = None
+    try:
+        walk = bridge.call(protocol.CMD_BROWSER_FIND, find, timeout=_FIND_TIMEOUT) or {}
+        if not walk.get("found"):
+            return {"ok": False, "error": "Could not reach the plugin in FL's Browser.",
+                    "plugin": target["name"], "browser": walk}
+        hit = _wait_for(lambda: (_channel_count(bridge) if _channel_count(bridge) > before else None), sleep)
+    finally:
+        # A new channel stays selected (like loading by hand); otherwise put the
+        # old selection back.
+        if not hit:
+            bridge.call(protocol.CMD_CHANNEL_SELECTION, {"op": "restore", "selected": sel.get("selected", [])})
+    if hit:
+        return {"ok": True, "loaded": target["name"], "kind": "generator", "channel": hit - 1,
+                "format": target["format"]}
+    return {"ok": False, "error": "FL reached the instrument but no new channel appeared.",
+            "plugin": target["name"], "browser": walk,
+            "hint": "If an existing channel changed instead, undo it in FL (Cmd/Ctrl+Z)."}
 
 
 def register(mcp: FastMCP) -> None:

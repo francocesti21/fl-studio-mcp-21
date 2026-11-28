@@ -305,6 +305,8 @@ CMD_SESSION_INFO = "session_info"    # mixer/playlist/channel counts
 CMD_MIXER_SELECT_TRACKS = "mixer_select_tracks"
 CMD_MIXER_ADD_TRACKS = "mixer_add_tracks"   # experimental (ui.insert)
 CMD_BROWSER_FIND = "browser_find"   # walk the Browser tree; confirm=True loads a plugin
+CMD_FX_TARGET = "fx_target"         # aim effect loads: point the selected channel at a mixer track
+CMD_CHANNEL_SELECTION = "channel_selection"  # save / clear / restore Channel Rack selection
 CMD_UI_STEPS = "ui_steps"           # whitelisted UI/mixer steps (diagnosis)
 CMD_BROWSER_PEEK = "browser_peek"   # focused Browser item + the next few captions (diagnosis)
 

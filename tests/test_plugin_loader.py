@@ -17,6 +17,8 @@ def _db(tmp_path):
 
 
 class FakeBridge:
+    fx_track = 4
+
     def __init__(self, load_after=1, works=True):
         self.slots = {0: "Fruity Limiter"}
         self.channels = 3
@@ -24,19 +26,34 @@ class FakeBridge:
         self.pending = None
         self.load_after = load_after
         self.works = works
+        self.target = 0          # mixer track the selected channel feeds
+        self.selected = [0]
 
     def call(self, command, params=None, timeout=None):
         self.calls.append((command, params))
+        if command == protocol.CMD_FX_TARGET:
+            if params["op"] == "set":
+                prev, self.target = self.target, params["track"]
+                return {"channel": 0, "previous": prev}
+            self.target = params["previous"]
+            return {"restored": True}
+        if command == protocol.CMD_CHANNEL_SELECTION:
+            if params["op"] == "save":
+                return {"selected": list(self.selected), "count": self.channels}
+            self.selected = [] if params["op"] == "clear" else list(params["selected"])
+            return {}
         if command == protocol.CMD_BROWSER_FIND:
             if self.works:
-                self.pending = (params, self.load_after)
+                self.pending = (dict(params, target=self.target, generator=not self.selected), self.load_after)
             return {"found": True, "confirmed": True}
         if self.pending:
             p, n = self.pending
             if n <= 0:
-                if "track" in p:
-                    self.slots[p["slot"]] = p["path"][-1]
-                else:
+                if p["path"][2] == "Effects":
+                    if p["target"] == self.fx_track:
+                        free = min(set(range(10)) - set(self.slots))
+                        self.slots[free] = p["path"][-1]
+                elif p["generator"]:
                     self.channels += 1
                 self.pending = None
             else:
@@ -59,8 +76,7 @@ def test_effect_loads_into_first_free_slot_and_is_verified(tmp_path, monkeypatch
     b = FakeBridge()
     res = load_plugin(b, "Pro-Q 3", track=4, sleep=lambda s: None)
     assert res["ok"] and res["slot"] == 1 and res["loaded"] == "Pro-Q 3"
-    find = [p for c, p in b.calls if c == protocol.CMD_BROWSER_FIND][0]
-    assert find["track"] == 4 and find["slot"] == 1 and find["confirm"] is True
+    assert b.target == 0     # the channel's original mixer target is restored
 
 
 def test_generator_becomes_new_channel(tmp_path, monkeypatch):
@@ -88,3 +104,11 @@ def test_ambiguous_name_asks_to_pick(tmp_path, monkeypatch):
 def test_effect_requires_track(tmp_path, monkeypatch):
     monkeypatch.setenv("FLSTUDIO_MCP_PLUGIN_DB", str(_db(tmp_path)))
     assert load_plugin(FakeBridge(), "Pro-C 2", sleep=lambda s: None)["ok"] is False
+
+
+def test_generator_load_deselects_channels_first(tmp_path, monkeypatch):
+    monkeypatch.setenv("FLSTUDIO_MCP_PLUGIN_DB", str(_db(tmp_path)))
+    b = FakeBridge()
+    load_plugin(b, "Serum", sleep=lambda s: None)
+    order = [c for c, _ in b.calls]
+    assert order.index(protocol.CMD_CHANNEL_SELECTION) < order.index(protocol.CMD_BROWSER_FIND)
