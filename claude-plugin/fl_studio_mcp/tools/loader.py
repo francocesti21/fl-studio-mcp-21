@@ -16,7 +16,7 @@ count and only reports success when the plugin actually appeared.
 from __future__ import annotations
 
 import time
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 from fastmcp import FastMCP
 from pydantic import Field
@@ -137,3 +137,15 @@ def register(mcp: FastMCP) -> None:
         """Diagnosis for fl_load_plugin: the focused FL Browser item and the
         next few captions (marks folders). Moves only the Browser selection."""
         return get_bridge().call(protocol.CMD_BROWSER_PEEK, {"count": count})
+
+    @mcp.tool(annotations={"title": "Run UI steps (diagnosis)", "readOnlyHint": False})
+    def fl_ui_steps(
+        steps: Annotated[List[List], Field(description=(
+            "Steps run in order inside FL, e.g. [['select_track',3],['active_fx'],['slots',3]]. "
+            "Allowed: select_track t [flags], active_track t, deselect_all, focus_editor t s, "
+            "active_fx, track_number, show wid, focus wid, form, focused_plugin, escape, enter, "
+            "find <captions...>, chan_target t, chan_target_get, slots t."))],
+    ) -> dict:
+        """Diagnosis for plugin loading: run whitelisted UI/mixer steps in one
+        FL callback and get each result. Not for everyday use."""
+        return get_bridge().call(protocol.CMD_UI_STEPS, {"steps": steps}, timeout=_FIND_TIMEOUT)

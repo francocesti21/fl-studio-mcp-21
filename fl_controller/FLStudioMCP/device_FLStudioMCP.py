@@ -1906,6 +1906,62 @@ def _h_browser_peek(p):
     return {"items": items}
 
 
+
+def _h_ui_steps(p):
+    """Run a short list of WHITELISTED UI/mixer steps in one callback and report
+    each result. Used to find the exact sequence FL needs to aim a Browser load
+    at a mixer slot. No eval: only the step names below are accepted."""
+    steps = p.get("steps") or []
+    out = []
+    trace = []
+    for step in steps[:16]:
+        name = str(step[0]) if step else ""
+        args = list(step[1:]) if step else []
+        try:
+            if name == "select_track":
+                mixer.setTrackNumber(int(args[0]), int(args[1]) if len(args) > 1 else 1); r = None
+            elif name == "active_track":
+                mixer.setActiveTrack(int(args[0])); r = None
+            elif name == "deselect_all":
+                mixer.deselectAll(); r = None
+            elif name == "focus_editor":
+                mixer.focusEditor(int(args[0]), int(args[1])); r = None
+            elif name == "active_fx":
+                r = mixer.getActiveEffectIndex()
+            elif name == "track_number":
+                r = mixer.trackNumber()
+            elif name == "show":
+                ui.showWindow(int(args[0])); r = None
+            elif name == "focus":
+                ui.setFocused(int(args[0])); r = None
+            elif name == "form":
+                r = ui.getFocusedFormCaption()
+            elif name == "focused_plugin":
+                r = ui.getFocusedPluginName()
+            elif name == "escape":
+                ui.escape(); r = None
+            elif name == "enter":
+                ui.enter(); r = None
+            elif name == "find":
+                r = _h_browser_find({"path": args, "confirm": False}).get("found")
+            elif name == "chan_target":
+                ch = channels.selectedChannel()
+                channels.setTargetFxTrack(ch, int(args[0])); r = ch
+            elif name == "chan_target_get":
+                ch = channels.selectedChannel(); r = [ch, channels.getTargetFxTrack(ch)]
+            elif name == "slots":
+                t = int(args[0])
+                r = [s for s in range(10) if plugins.isValid(t, s)]
+            else:
+                r = "unknown step"
+            out.append([name, r])
+        except Exception as e:
+            out.append([name, "ERR %s: %s" % (type(e).__name__, str(e)[:40])])
+    while out and not _fits({"v": PROTOCOL_VERSION, "ok": True, "data": {"results": out}}):
+        out.pop()
+    return {"results": out}
+
+
 _HANDLERS = {
     'playlist_track_list': _h_playlist_track_list,
     'playlist_get_track': _h_playlist_get_track,
@@ -1973,4 +2029,5 @@ _HANDLERS = {
     "mixer_add_tracks": _h_mixer_add_tracks,
     "browser_find": _h_browser_find,
     "browser_peek": _h_browser_peek,
+    "ui_steps": _h_ui_steps,
 }
