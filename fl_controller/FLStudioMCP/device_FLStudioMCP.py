@@ -72,7 +72,7 @@ PROTOCOL_VERSION = 2
 
 # Must equal the server package version. `fl-studio-mcp doctor` compares the
 # two and asks for `fl-studio-mcp setup` when they differ.
-CONTROLLER_VERSION = "2.2.1"
+CONTROLLER_VERSION = "2.3.0"
 
 SYSEX_MANUFACTURER = 0x7D
 SYSEX_MAGIC = (0x4D, 0x43, 0x50)   # ASCII "MCP"
@@ -1761,6 +1761,151 @@ def _h_mixer_add_tracks(p):
     return {"ok": after - before == n, "before": before, "after": after,
             "added": after - before, "tried": tried}
 
+
+# -- plugin loading via FL's own Browser --------------------------------------
+# FL's scripting API has no "load plugin" call, but its Browser does: the
+# "Plugin database" tree mirrors the .fst shortcuts on disk, and confirming a
+# plugin node loads it (effects -> the focused mixer track, generators -> the
+# Channel Rack). We walk that tree with the public ui.navigateBrowser API --
+# no mouse/keyboard simulation. The server resolves the exact tree path from
+# the .fst file on disk and verifies the result afterwards (FL finishes the
+# load after this callback returns).
+
+_BROWSER_PREV = 40
+_BROWSER_NEXT = 41
+_BROWSER_SCAN_CAP = 1500
+
+
+def _norm_caption(text):
+    text = (text or "").strip().lower()
+    if text.endswith(".fst"):
+        text = text[:-4]
+    return text
+
+
+def _browser_caption():
+    try:
+        return ui.getFocusedNodeCaption() or ""
+    except Exception:
+        return ""
+
+
+def _browser_is_folder():
+    try:
+        return ui.getFocusedNodeFileType() <= -100
+    except Exception:
+        return False
+
+
+def _browser_focus():
+    wid = getattr(midi, "widBrowser", 4)
+    try:
+        ui.showWindow(wid)
+    except Exception:
+        pass
+    try:
+        ui.setFocused(wid)
+    except Exception:
+        pass
+
+
+def _browser_scan(target, direction, cap, trace):
+    """Move through the visible Browser items until one matches target."""
+    want = _norm_caption(target)
+    if _norm_caption(_browser_caption()) == want:
+        return True
+    last, same = None, 0
+    for _ in range(cap):
+        name = ui.navigateBrowser(direction, False)
+        cap_now = _browser_caption() or name or ""
+        if _norm_caption(cap_now) == want:
+            return True
+        if cap_now == last:
+            same += 1
+            if same >= 3:          # stopped moving: top/bottom of the list
+                trace.append("edge:" + cap_now[:20])
+                return False
+        else:
+            same = 0
+        last = cap_now
+    trace.append("cap:" + (last or "")[:20])
+    return False
+
+
+def _browser_expand():
+    if hasattr(ui, "toggleBrowserNode"):
+        ui.toggleBrowserNode(1)
+        return True
+    return False
+
+
+def _h_browser_find(p):
+    """Walk the Browser down `path` (list of captions from the tree root, e.g.
+    ["Plugin database","Installed","Effects","VST3","Pro-Q 3"]), expanding each
+    folder. With confirm=True, confirms the last node (loads the plugin).
+
+    Effects load into the focused mixer track: pass `track` (and optionally
+    `slot`) to select it first. Returns a short trace for diagnosis."""
+    path = [str(x) for x in (p.get("path") or [])]
+    if not path:
+        raise _ClientError("path is required")
+    if not hasattr(ui, "navigateBrowser"):
+        raise _ClientError("This FL build has no ui.navigateBrowser", code="unsupported")
+    if hasattr(general, "safeToEdit") and not general.safeToEdit():
+        raise _ClientError("FL is busy (a dialog or menu is open)", code="busy")
+
+    trace = []
+    track = p.get("track")
+    if track is not None:
+        track = int(track)
+        if track < 0 or track >= mixer.trackCount():
+            raise _ClientError("track out of range")
+        mixer.setTrackNumber(track, getattr(midi, "curfxScrollToMakeVisible", 1))
+        slot = p.get("slot")
+        if slot is not None:
+            try:
+                mixer.focusEditor(track, int(slot))
+            except Exception as e:
+                trace.append("focusEditor:%s" % type(e).__name__)
+
+    _browser_focus()
+
+    # Root: scan forward, then backward (the list may start anywhere).
+    if not _browser_scan(path[0], _BROWSER_NEXT, _BROWSER_SCAN_CAP, trace):
+        if not _browser_scan(path[0], _BROWSER_PREV, _BROWSER_SCAN_CAP, trace):
+            return {"found": False, "stage": 0, "missing": path[0][:40], "trace": trace[-8:]}
+
+    for i in range(1, len(path)):
+        if not _browser_is_folder():
+            return {"found": False, "stage": i, "missing": path[i][:40],
+                    "error": "not a folder: " + _browser_caption()[:30], "trace": trace[-8:]}
+        if not _browser_expand():
+            raise _ClientError("This FL build has no ui.toggleBrowserNode (needs scripting API 34+)",
+                               code="unsupported")
+        if not _browser_scan(path[i], _BROWSER_NEXT, _BROWSER_SCAN_CAP, trace):
+            return {"found": False, "stage": i, "missing": path[i][:40], "trace": trace[-8:]}
+
+    result = {"found": True, "caption": _browser_caption()[:40], "trace": trace[-8:]}
+    if p.get("confirm"):
+        ui.enter()
+        result["confirmed"] = True
+    return result
+
+
+def _h_browser_peek(p):
+    """READ-ONLY-ish: the focused Browser item and the next `count` captions
+    (moves the Browser selection, nothing else)."""
+    count = max(1, min(int(p.get("count", 10)), 25))
+    _browser_focus()
+    items = [{"c": _browser_caption()[:30], "folder": _browser_is_folder()}]
+    for _ in range(count - 1):
+        ui.navigateBrowser(_BROWSER_NEXT, False)
+        items.append({"c": _browser_caption()[:30], "folder": _browser_is_folder()})
+    while items and not _fits({"v": PROTOCOL_VERSION, "ok": True, "data": {"items": items}}):
+        items.pop()
+    return {"items": items}
+
+
 _HANDLERS = {
     'playlist_track_list': _h_playlist_track_list,
     'playlist_get_track': _h_playlist_get_track,
@@ -1826,4 +1971,6 @@ _HANDLERS = {
     "session_info": _h_session_info,
     "mixer_select_tracks": _h_mixer_select_tracks,
     "mixer_add_tracks": _h_mixer_add_tracks,
+    "browser_find": _h_browser_find,
+    "browser_peek": _h_browser_peek,
 }

@@ -58,7 +58,9 @@ La API de scripts de FL **no permite** lo siguiente:
 - **Crear pistas de mixer.** `fl_build_template` revisa antes cuántas hay y te dice cuántas agregar desde *Mixer > Insert multiple*.
 - **"Assign to new Audio track(s)"**, es decir, el enlace entre mixer y playlist. La playlist queda con los mismos nombres y colores, pero sin ese enlace.
 - **Anclar pistas a la izquierda o derecha.** La API solo permite leer de qué lado están.
-- **Cargar plugins o presets.** Solo se pueden controlar los plugins que ya están cargados en el proyecto.
+- **Cargar presets.** Solo se pueden sugerir; el preset lo cargas tú.
+
+**Cargar plugins sí se puede** con `fl_load_plugin`: el MCP recorre el navegador de FL (*Plugin database*) con la API oficial y confirma que el plugin apareció. Necesita FL Studio con API de scripts 34 o superior.
 
 ## Instalación (macOS)
 
@@ -78,6 +80,8 @@ Después, en `claude_desktop_config.json`:
 ```
 
 Reinicia FL Studio y Claude. Para comprobar que todo funciona, ejecuta `fl_ping`.
+
+**Actualizar:** `cd ~/fl-studio-mcp-21 && git pull && ./scripts/install_macos.sh`, y después reinicia FL Studio y Claude.
 
 ## Privacidad
 

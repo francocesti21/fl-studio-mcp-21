@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2.3.0
+- **`fl_load_plugin` now loads plugins.** Effects go into the first free slot of a mixer track, instruments become a new Channel Rack channel. It finds the plugin's `.fst` in FL's plugin database, walks FL's own Browser to it with the official scripting API (`ui.navigateBrowser`, `ui.toggleBrowserNode`; no mouse or keyboard simulation), confirms it, and reports success only after the plugin actually appears. Needs FL scripting API 34+.
+- **`fl_browser_peek`:** shows the focused Browser item and the next captions, to diagnose loading.
+- Re-run `fl-studio-mcp setup` (or copy `device_FLStudioMCP.py`) so FL uses the new controller script.
+
 ### Version 2 (will be released as 2.0.0)
 - **One-command setup:** `fl-studio-mcp setup` installs the controller script (now shipped inside the package), waits for FL Studio and reports READY only after a real ping. `fl-studio-mcp doctor` prints one status code and the next step; `fl-studio-mcp connect` prints the client entry.
 - **macOS / Linux need no MIDI setup:** the server creates virtual ports with one shared name and FL Studio links, pairs and enables them by itself. On by default; an existing IAC or loopMIDI pair is used first; `FLSTUDIO_MCP_VIRTUAL_PORTS=0` turns it off. Builds on #11 by David Bertram.

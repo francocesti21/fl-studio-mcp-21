@@ -34,8 +34,8 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """Read FL's installed-plugin DATABASE from disk (the .fst shortcuts FL
         writes for every scanned plugin) -> a de-duped, categorized list of what
-        you OWN. Bypasses the FL API (which only sees LOADED plugins). FL still
-        can't LOAD these -- it's for library-aware suggestions. effects_by_role is
+        you OWN. Bypasses the FL API (which only sees LOADED plugins). Load one
+        with fl_load_plugin(name, track). effects_by_role is
         a rough keyword grouping (Claude should apply its own plugin knowledge).
         Read-only (directory listing only)."""
         lib = pl.list_installed()
@@ -58,7 +58,7 @@ def register(mcp: FastMCP) -> None:
         """Plan a genre-appropriate processing chain over a track's EXISTING
         plugins. READ-ONLY plan: returns the ordered intent calls (each with the
         matched plugin + slot) and which steps are MISSING because the needed
-        plugin isn't loaded (FL can't load plugins -- add those manually). After
+        plugin isn't loaded (load those with fl_load_plugin, then re-plan). After
         the user approves, apply each step by calling its 'apply' tool+args
         (fl_apply_eq_intent / fl_apply_compression_intent / fl_apply_reverb_intent
         -- each logged + rollback-able). e.g. vocal: HP -> comp -> presence ->

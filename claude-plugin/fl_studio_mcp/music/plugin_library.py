@@ -6,7 +6,8 @@ FL writes a .fst shortcut for every scanned plugin under
     Generators/<format>/*.fst   (instruments)
 The .fst BASENAME is the plugin name FL uses. We only read the directory listing
 (names) -- never file contents. Read-only; pure filesystem. (FL still can't LOAD
-these via the API; this is for library-aware SUGGESTIONS.)
+these via the API directly; resolve_plugin() gives the Browser path that
+tools/loader.py walks to load one.)
 """
 from __future__ import annotations
 
@@ -86,3 +87,45 @@ def effects_by_role(effect_names):
             if any(k in low for k in kws):
                 out[role].append(nm)
     return {role: names for role, names in out.items() if names}
+
+
+# Preferred formats when a plugin exists in several (macOS first, then Windows).
+_FORMAT_ORDER = ("vst3", "au", "clap", "vst", "fruity", "new")
+
+
+def resolve_plugin(name, kind="auto", base=None):
+    """Find a plugin's .fst under Installed/ and return its Browser path.
+
+    -> {found, matches:[{name, kind, format, path:[...captions...]}], exact}
+    `path` starts at "Plugin database" (the Browser tree mirrors the folders).
+    Exact (case-insensitive) name matches win; otherwise substring matches.
+    """
+    base = base or find_plugin_db()
+    if not base or not os.path.isdir(base):
+        return {"found": False, "error": "FL plugin-db 'Installed' folder not found; set %s." % _ENV}
+    want = (name or "").strip().lower()
+    kinds = {"effect": ("Effects",), "generator": ("Generators",)}.get(kind, ("Effects", "Generators"))
+    exact, partial = [], []
+    for top in kinds:
+        root = os.path.join(base, top)
+        for dirpath, _dirs, files in os.walk(root):
+            for f in files:
+                if not f.lower().endswith(".fst"):
+                    continue
+                stem = os.path.splitext(f)[0]
+                rel = os.path.relpath(os.path.join(dirpath, stem), base).split(os.sep)
+                entry = {"name": stem, "kind": "effect" if top == "Effects" else "generator",
+                         "format": rel[1] if len(rel) > 2 else "",
+                         "path": ["Plugin database", "Installed"] + rel}
+                low = stem.lower()
+                if low == want:
+                    exact.append(entry)
+                elif want and want in low:
+                    partial.append(entry)
+
+    def rank(e):
+        fmt = e["format"].lower()
+        return (_FORMAT_ORDER.index(fmt) if fmt in _FORMAT_ORDER else len(_FORMAT_ORDER), e["name"].lower())
+
+    matches = sorted(exact, key=rank) or sorted(partial, key=rank)
+    return {"found": bool(matches), "exact": bool(exact), "matches": matches[:12]}

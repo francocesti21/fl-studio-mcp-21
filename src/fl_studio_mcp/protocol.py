@@ -304,6 +304,8 @@ CMD_STATE_DUMP = "state_dump"        # compact state of given targets (verify/un
 CMD_SESSION_INFO = "session_info"    # mixer/playlist/channel counts
 CMD_MIXER_SELECT_TRACKS = "mixer_select_tracks"
 CMD_MIXER_ADD_TRACKS = "mixer_add_tracks"   # experimental (ui.insert)
+CMD_BROWSER_FIND = "browser_find"   # walk the Browser tree; confirm=True loads a plugin
+CMD_BROWSER_PEEK = "browser_peek"   # focused Browser item + the next few captions (diagnosis)
 
 
 

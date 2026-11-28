@@ -162,8 +162,7 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """List the filled effect slots (0-9) on a mixer track, with plugin names.
 
-        We cannot load NEW plugins (FL API limit) -- this only reports plugins
-        already present in the project."""
+        Reports plugins already present; to add one use fl_load_plugin."""
         return get_bridge().call(protocol.CMD_PLUGIN_LIST, {"track": track})
 
     @mcp.tool(annotations={"title": "Get plugin parameters", **_RO})
