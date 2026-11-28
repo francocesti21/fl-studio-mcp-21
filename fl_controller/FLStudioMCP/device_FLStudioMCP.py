@@ -72,7 +72,7 @@ PROTOCOL_VERSION = 2
 
 # Must equal the server package version. `fl-studio-mcp doctor` compares the
 # two and asks for `fl-studio-mcp setup` when they differ.
-CONTROLLER_VERSION = "2.3.1"
+CONTROLLER_VERSION = "2.4.0"
 
 SYSEX_MANUFACTURER = 0x7D
 SYSEX_MAGIC = (0x4D, 0x43, 0x50)   # ASCII "MCP"
@@ -1832,6 +1832,33 @@ def _browser_scan(target, direction, cap, trace):
     return False
 
 
+def _browser_jog(steps):
+    """Move the Browser selection by `steps` items at once (FL's jog control)."""
+    if not hasattr(ui, "jog"):
+        return False
+    try:
+        ui.jog(int(steps))
+        return True
+    except Exception:
+        return False
+
+
+def _browser_reach(target, skip, trace):
+    """From a just-expanded folder, land on child `target`. With `skip` (its
+    position among the folder's children, known from disk) jump there in one
+    jog; then fine-tune or fall back to walking item by item."""
+    want = _norm_caption(target)
+    if skip is not None and _browser_jog(int(skip) + 1):
+        if _norm_caption(_browser_caption()) == want:
+            return True
+        trace.append("jog-miss:" + _browser_caption()[:16])
+        if _browser_scan(target, _BROWSER_NEXT, 40, trace):
+            return True
+        if _browser_scan(target, _BROWSER_PREV, 80, trace):
+            return True
+    return _browser_scan(target, _BROWSER_NEXT, _BROWSER_SCAN_CAP, trace)
+
+
 def _browser_expand():
     if hasattr(ui, "toggleBrowserNode"):
         ui.toggleBrowserNode(1)
@@ -1864,6 +1891,7 @@ def _h_browser_find(p):
         if not _browser_scan(path[0], _BROWSER_PREV, _BROWSER_SCAN_CAP, trace):
             return {"found": False, "stage": 0, "missing": path[0][:40], "trace": trace[-8:]}
 
+    skips = p.get("skips") or []
     for i in range(1, len(path)):
         if not _browser_is_folder():
             return {"found": False, "stage": i, "missing": path[i][:40],
@@ -1871,7 +1899,8 @@ def _h_browser_find(p):
         if not _browser_expand():
             raise _ClientError("This FL build has no ui.toggleBrowserNode (needs scripting API 34+)",
                                code="unsupported")
-        if not _browser_scan(path[i], _BROWSER_NEXT, _BROWSER_SCAN_CAP, trace):
+        skip = skips[i] if i < len(skips) else None
+        if not _browser_reach(path[i], skip, trace):
             return {"found": False, "stage": i, "missing": path[i][:40], "trace": trace[-8:]}
 
     result = {"found": True, "caption": _browser_caption()[:40], "trace": trace[-8:]}
@@ -1879,6 +1908,28 @@ def _h_browser_find(p):
         ui.enter()
         result["confirmed"] = True
     return result
+
+
+def _h_browser_collapse(p):
+    """After a load: walk back up `path` from the loaded item (one jog per level,
+    using the same `skips`) and collapse each folder, so the Browser stays short
+    and the next load is fast. Best-effort; stops at the first surprise."""
+    path = [str(x) for x in (p.get("path") or [])]
+    skips = p.get("skips") or []
+    _browser_focus()
+    collapsed = 0
+    if _norm_caption(_browser_caption()) != _norm_caption(path[-1] if path else ""):
+        return {"collapsed": 0, "reason": "selection moved"}
+    for i in range(len(path) - 1, 0, -1):
+        skip = skips[i] if i < len(skips) else None
+        if skip is None or not _browser_jog(-(int(skip) + 1)):
+            break
+        if _norm_caption(_browser_caption()) != _norm_caption(path[i - 1]):
+            break
+        if hasattr(ui, "toggleBrowserNode"):
+            ui.toggleBrowserNode(0)
+            collapsed += 1
+    return {"collapsed": collapsed}
 
 
 def _h_browser_peek(p):
@@ -1988,6 +2039,12 @@ def _h_ui_steps(p):
                 r = [i for i in range(channels.channelCount()) if channels.isChannelSelected(i)]
             elif name == "chan_names":
                 r = [channels.getChannelName(i)[:16] for i in range(min(channels.channelCount(), 12))]
+            elif name == "jog":
+                ui.jog(int(args[0])); r = _browser_caption()[:30]
+            elif name == "caption":
+                r = _browser_caption()[:30]
+            elif name == "expand":
+                ui.toggleBrowserNode(int(args[0]) if args else 1); r = None
             elif name == "undo":
                 general.undoUp(); r = None
             elif name == "slots":
@@ -2070,6 +2127,7 @@ _HANDLERS = {
     "mixer_add_tracks": _h_mixer_add_tracks,
     "browser_find": _h_browser_find,
     "browser_peek": _h_browser_peek,
+    "browser_collapse": _h_browser_collapse,
     "ui_steps": _h_ui_steps,
     "fx_target": _h_fx_target,
     "channel_selection": _h_channel_selection,

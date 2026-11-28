@@ -58,6 +58,8 @@ class FakeBridge:
                 self.pending = None
             else:
                 self.pending = (p, n - 1)
+        if command == protocol.CMD_BROWSER_COLLAPSE:
+            return {"collapsed": 3}
         if command == protocol.CMD_PLUGIN_LIST:
             return {"slots": [{"slot": s, "name": n} for s, n in self.slots.items()]}
         if command == protocol.CMD_SESSION_INFO:
@@ -112,3 +114,12 @@ def test_generator_load_deselects_channels_first(tmp_path, monkeypatch):
     load_plugin(b, "Serum", sleep=lambda s: None)
     order = [c for c, _ in b.calls]
     assert order.index(protocol.CMD_CHANNEL_SELECTION) < order.index(protocol.CMD_BROWSER_FIND)
+
+
+def test_browser_skips_follow_fl_order(tmp_path):
+    base = _db(tmp_path)
+    (base.parent / "Effects").mkdir()            # a sibling of Installed in Plugin database
+    path = ["Plugin database", "Installed", "Effects", "VST3", "Pro-R 2"]
+    # Plugin database: [Effects, Installed]; Installed: [Effects, Generators];
+    # Effects: [AU, VST3]; VST3: [Pro-C 2, Pro-Q 3, Pro-R 2]
+    assert pl.browser_skips(path, base=str(base)) == [None, 1, 0, 1, 2]

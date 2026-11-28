@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2.4.0
+- **Much faster, calmer plugin loads.** The server reads each step's position from the plugin database on disk and the controller jumps there with `ui.jog` instead of walking the Browser item by item (falls back to walking if a jump misses). After a load, `browser_collapse` folds the walked folders back so the Browser stays short.
+- `fl_ui_steps`: `jog`, `caption`, `expand` steps for diagnosis.
+
 ### 2.3.1
 - **Plugins land on the right track.** Measured on FL 26.1: a Browser effect goes into the next free slot of the mixer track the *selected channel* feeds, so `fl_load_plugin` points that channel at the requested track and restores it afterwards. Instruments: the channel selection is cleared first (otherwise FL replaces the selected channel's plugin) and restored if nothing new appeared.
 - `fl_ui_steps`: whitelisted UI/mixer steps for diagnosing loads.

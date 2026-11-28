@@ -308,7 +308,8 @@ CMD_BROWSER_FIND = "browser_find"   # walk the Browser tree; confirm=True loads 
 CMD_FX_TARGET = "fx_target"         # aim effect loads: point the selected channel at a mixer track
 CMD_CHANNEL_SELECTION = "channel_selection"  # save / clear / restore Channel Rack selection
 CMD_UI_STEPS = "ui_steps"           # whitelisted UI/mixer steps (diagnosis)
-CMD_BROWSER_PEEK = "browser_peek"   # focused Browser item + the next few captions (diagnosis)
+CMD_BROWSER_PEEK = "browser_peek"
+CMD_BROWSER_COLLAPSE = "browser_collapse"  # fold the walked folders back after a load   # focused Browser item + the next few captions (diagnosis)
 
 
 

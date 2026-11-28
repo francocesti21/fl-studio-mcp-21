@@ -129,3 +129,29 @@ def resolve_plugin(name, kind="auto", base=None):
 
     matches = sorted(exact, key=rank) or sorted(partial, key=rank)
     return {"found": bool(matches), "exact": bool(exact), "matches": matches[:12]}
+
+
+def browser_skips(path, base=None):
+    """Position of each path step among its folder's visible children in FL's
+    Browser (subfolders first, then .fst presets; case-insensitive order), so
+    the controller can jump instead of walking. skips[0] (the Browser root) is
+    unknown -> None. Any step that can't be computed -> None (walk instead)."""
+    base = base or find_plugin_db()
+    if not base or len(path) < 2:
+        return [None] * len(path)
+    db_root = os.path.dirname(base)          # .../Plugin database
+    skips = [None]
+    folder = db_root
+    for step in path[1:]:
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            skips += [None] * (len(path) - len(skips))
+            break
+        dirs = sorted((n for n in names if os.path.isdir(os.path.join(folder, n))), key=str.lower)
+        files = sorted((n[:-4] for n in names if n.lower().endswith(".fst")), key=str.lower)
+        order = dirs + files
+        low = [x.lower() for x in order]
+        skips.append(low.index(step.lower()) if step.lower() in low else None)
+        folder = os.path.join(folder, step)
+    return skips

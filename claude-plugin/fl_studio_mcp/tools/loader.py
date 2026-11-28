@@ -65,6 +65,14 @@ def _wait_for(check, sleep):
         sleep(0.25)
 
 
+def _collapse(bridge, path, skips):
+    """Fold the Browser back so the next load starts from a short list."""
+    try:
+        bridge.call(protocol.CMD_BROWSER_COLLAPSE, {"path": path, "skips": skips})
+    except Exception:
+        pass
+
+
 def load_plugin(bridge, name, kind="auto", track=None, sleep=time.sleep):
     """Resolve, aim, walk the Browser, confirm, verify, restore.
 
@@ -82,7 +90,8 @@ def load_plugin(bridge, name, kind="auto", track=None, sleep=time.sleep):
         return {"ok": False, "error": "Several plugins match '%s'; pick one." % name,
                 "candidates": sorted({m["name"] for m in matches})}
     target = matches[0]
-    find = {"path": target["path"], "confirm": True}
+    skips = pl.browser_skips(target["path"])
+    find = {"path": target["path"], "skips": skips, "confirm": True}
 
     if target["kind"] == "effect":
         if track is None:
@@ -107,6 +116,7 @@ def load_plugin(bridge, name, kind="auto", track=None, sleep=time.sleep):
                 bridge.call(protocol.CMD_FX_TARGET, {"op": "restore", "channel": aim["channel"],
                                                       "previous": aim["previous"]})
         if hit:
+            _collapse(bridge, target["path"], skips)
             return {"ok": True, "loaded": hit[1], "kind": "effect", "track": track,
                     "slot": hit[0], "format": target["format"]}
         return {"ok": False, "error": "FL reached the plugin but it did not appear on track %d." % track,
